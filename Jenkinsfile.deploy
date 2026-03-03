@@ -67,6 +67,7 @@ pipeline {
                             --dry-run=client -o yaml | kubectl apply -f -
                     """
                     sh "kubectl apply -f k8s/health-watchdog.yaml"
+                    sh "kubectl rollout restart deployment/health-watchdog"
                     sh "kubectl rollout status deployment/health-watchdog --timeout=2m"
                     echo "Watchdog is running!"
                 }

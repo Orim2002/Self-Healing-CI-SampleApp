@@ -1,0 +1,107 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'SERVICE_NAME', defaultValue: '')
+        string(name: 'IMAGE_TAG',    defaultValue: '')
+        string(name: 'ECR_URL',      defaultValue: '')
+        string(name: 'GIT_COMMIT',   defaultValue: '')
+    }
+
+    environment {
+        DB_HOST          = credentials('DB_HOST')
+        DB_PASSWORD      = credentials('DB_PASSWORD')
+        JENKINS_TOKEN    = credentials('JENKINS_TOKEN')
+        TELEGRAM_TOKEN   = credentials('TELEGRAM_TOKEN')
+        TELEGRAM_CHAT_ID = credentials('TELEGRAM_CHAT_ID')
+        JENKINS_URL      = "${env.JENKINS_URL}"
+        FULL_IMAGE       = "${params.ECR_URL}:${params.IMAGE_TAG}"
+    }
+
+    stages {
+
+        stage('Configure') {
+            steps {
+                script {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '*/master']],
+                        userRemoteConfigs: [[
+                            url: 'https://github.com/Orim2002/Self-Healing-CI',
+                            credentialsId: 'github-token'
+                        ]]
+                    ])
+
+                    sh """
+                        kubectl create secret generic pipeline-secrets \
+                            --from-literal=DB_HOST=${env.DB_HOST} \
+                            --from-literal=DB_PASSWORD=${env.DB_PASSWORD} \
+                            --from-literal=JENKINS_URL=${env.JENKINS_URL} \
+                            --from-literal=JENKINS_TOKEN=${env.JENKINS_TOKEN} \
+                            --from-literal=TELEGRAM_TOKEN=${env.TELEGRAM_TOKEN} \
+                            --from-literal=TELEGRAM_CHAT_ID=${env.TELEGRAM_CHAT_ID} \
+                            --dry-run=client -o yaml | kubectl apply -f -
+                    """
+
+                    sh """
+                        sed -i 's|image: .*${params.SERVICE_NAME}.*|image: ${env.FULL_IMAGE}|g' watchdog.yaml
+                    """
+
+                    echo "Starting Health Watchdog..."
+                    sh """
+                        kubectl create configmap watchdog-config \
+                            --from-file=watchdog.yaml \
+                            --dry-run=client -o yaml | kubectl apply -f -
+                    """
+                    sh "kubectl apply -f k8s/watchdog-deployment.yaml"
+                    sh "kubectl rollout status deployment/health-watchdog --timeout=2m"
+                    echo "Watchdog is running!"
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    echo "Deploying ${env.FULL_IMAGE} to Kubernetes..."
+                    sh """
+                        kubectl set image deployment/${params.SERVICE_NAME} \
+                            ${params.SERVICE_NAME}=${env.FULL_IMAGE}
+                        kubectl rollout status deployment/${params.SERVICE_NAME} --timeout=5m
+                    """
+                }
+            }
+        }
+
+        stage('Register') {
+            steps {
+                script {
+                    echo "Recording deployment in Build Registry..."
+                    sh """
+                        python3 -c "
+                        from build_registry import record_deployment
+                        record_deployment(
+                            service      = '${params.SERVICE_NAME}',
+                            image        = '${env.FULL_IMAGE}',
+                            running_time = 0,
+                            requests     = 0,
+                            error_rate   = 0.0,
+                        )
+                        print('Deployment recorded!')
+                        "
+                    """
+                }
+            }
+        }
+
+    }
+
+    post {
+        success {
+            echo "Deployment complete — Watchdog is monitoring ${params.SERVICE_NAME}"
+        }
+        failure {
+            echo "Deployment failed — previous version still running"
+        }
+    }
+}

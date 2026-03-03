@@ -1,0 +1,80 @@
+name: Self-Healing CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION:   ${{ vars.AWS_REGION }}
+  JENKINS_URL:  ${{ vars.JENKINS_URL }}
+  JENKINS_USER: ${{ vars.JENKINS_USER }}
+
+jobs:
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: pytest tests/ -v
+
+  build:
+    name: Build & Push to ECR
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      ecr_url:   ${{ steps.meta.outputs.ecr_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ vars.AWS_REGION }}
+
+      - id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - id: meta
+        run: |
+          IMAGE_TAG="${{ github.sha }}"
+          ECR_URL="${{ steps.login-ecr.outputs.registry }}/${{ github.event.repository.name }}"
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "ecr_url=${ECR_URL}"     >> $GITHUB_OUTPUT
+
+      - run: |
+          docker build \
+            -t ${{ steps.meta.outputs.ecr_url }}:${{ steps.meta.outputs.image_tag }} \
+            -t ${{ steps.meta.outputs.ecr_url }}:latest .
+          docker push ${{ steps.meta.outputs.ecr_url }}:${{ steps.meta.outputs.image_tag }}
+          docker push ${{ steps.meta.outputs.ecr_url }}:latest
+
+  deploy:
+    name: Trigger Jenkins
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - id: crumb
+        run: |
+          CRUMB=$(curl -s \
+            --user "${{ env.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }}" \
+            "${{ env.JENKINS_URL }}/crumbIssuer/api/json" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(f\"{d['crumbRequestField']}:{d['crumb']}\")")
+          echo "crumb=${CRUMB}" >> $GITHUB_OUTPUT
+
+      - run: |
+          curl -s -X POST \
+            --user "${{ env.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }}" \
+            -H "${{ steps.crumb.outputs.crumb }}" \
+            "${{ env.JENKINS_URL }}/job/deploy/buildWithParameters" \
+            --data-urlencode "SERVICE_NAME=${{ github.event.repository.name }}" \
+            --data-urlencode "IMAGE_TAG=${{ needs.build.outputs.image_tag }}" \
+            --data-urlencode "ECR_URL=${{ needs.build.outputs.ecr_url }}" \
+            --data-urlencode "GIT_COMMIT=${{ github.sha }}"

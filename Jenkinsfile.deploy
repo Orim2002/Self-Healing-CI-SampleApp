@@ -47,6 +47,7 @@ pipeline {
                             --from-literal=DB_PASSWORD=${env.DB_PASSWORD} \
                             --from-literal=DB_NAME=${env.DB_NAME} \
                             --from-literal=DB_USER=${env.DB_USER} \
+                            --from-literal=DB_USER=${env.DB_PORT} \
                             --from-literal=JENKINS_URL=${env.JENKINS_URL} \
                             --from-literal=JENKINS_TOKEN=${env.JENKINS_TOKEN} \
                             --from-literal=TELEGRAM_TOKEN=${env.TELEGRAM_TOKEN} \
@@ -89,7 +90,11 @@ pipeline {
                 script {
                     echo "Recording deployment in Build Registry..."
                     sh """
-
+DB_HOST=${env.DB_HOST} \
+DB_PASSWORD=${env.DB_PASSWORD} \
+DB_NAME=${env.DB_NAME} \
+DB_USER=${env.DB_USER} \
+DB_PORT=${env.DB_PORT} \
 python3 -c "
 from build_registry import record_deployment
 record_deployment(

@@ -11,6 +11,8 @@ pipeline {
     environment {
         DB_HOST          = credentials('DB_HOST')
         DB_PASSWORD      = credentials('DB_PASSWORD')
+        DB_NAME          = credentials('DB_NAME')
+        DB_USER          = credentials('DB_USER')
         JENKINS_TOKEN    = credentials('JENKINS_TOKEN')
         TELEGRAM_TOKEN   = credentials('TELEGRAM_TOKEN')
         TELEGRAM_CHAT_ID = credentials('TELEGRAM_CHAT_ID')

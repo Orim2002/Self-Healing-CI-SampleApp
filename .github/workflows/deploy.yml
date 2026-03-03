@@ -3,7 +3,7 @@ name: Self-Healing CI/CD Pipeline
 on:
   push:
     branches:
-      - main
+      - master
 
 env:
   AWS_REGION:   ${{ vars.AWS_REGION }}

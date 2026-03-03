@@ -85,17 +85,17 @@ pipeline {
                 script {
                     echo "Recording deployment in Build Registry..."
                     sh """
-                        python3 -c "
-                        from build_registry import record_deployment
-                        record_deployment(
-                            service      = '${params.SERVICE_NAME}',
-                            image        = '${env.FULL_IMAGE}',
-                            running_time = 0,
-                            requests     = 0,
-                            error_rate   = 0.0,
-                        )
-                        print('Deployment recorded!')
-                        "
+        python3 -c "
+        from build_registry import record_deployment
+        record_deployment(
+            service      = '${params.SERVICE_NAME}',
+            image        = '${env.FULL_IMAGE}',
+            running_time = 0,
+            requests     = 0,
+            error_rate   = 0.0,
+        )
+        print('Deployment recorded!')
+        "
                     """
                 }
             }

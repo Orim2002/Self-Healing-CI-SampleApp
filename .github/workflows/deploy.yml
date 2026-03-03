@@ -55,8 +55,9 @@ jobs:
             -t ${{ steps.meta.outputs.ecr_url }}:latest .
           docker push ${{ steps.meta.outputs.ecr_url }}:${{ steps.meta.outputs.image_tag }}
           docker push ${{ steps.meta.outputs.ecr_url }}:latest
-  
+
   deploy:
+    name: Trigger Jenkins
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -75,5 +76,3 @@ jobs:
             --data-urlencode "IMAGE_TAG=${{ needs.build.outputs.image_tag }}" \
             --data-urlencode "ECR_URL=${{ needs.build.outputs.ecr_url }}" \
             --data-urlencode "GIT_COMMIT=${{ github.sha }}"
-
-

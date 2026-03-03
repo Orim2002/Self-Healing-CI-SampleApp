@@ -33,6 +33,13 @@ pipeline {
                     ])
 
                     sh """
+                        aws eks update-kubeconfig \
+                            --name self-healing-pipeline \
+                            --region us-east-1 \
+                            --kubeconfig /var/lib/jenkins/.kube/config
+                    """
+
+                    sh """
                         kubectl create secret generic pipeline-secrets \
                             --from-literal=DB_HOST=${env.DB_HOST} \
                             --from-literal=DB_PASSWORD=${env.DB_PASSWORD} \

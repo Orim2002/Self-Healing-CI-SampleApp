@@ -55,5 +55,25 @@ jobs:
             -t ${{ steps.meta.outputs.ecr_url }}:latest .
           docker push ${{ steps.meta.outputs.ecr_url }}:${{ steps.meta.outputs.image_tag }}
           docker push ${{ steps.meta.outputs.ecr_url }}:latest
+  
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Jenkins
+        run: |
+          CRUMB=$(curl -s \
+            "https://jenkins.orimatest.com/crumbIssuer/api/json" \
+            --user "admin:${{ secrets.JENKINS_TOKEN }}" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(f\"{d['crumbRequestField']}:{d['crumb']}\")")
+
+          curl -s -X POST \
+            "https://jenkins.orimatest.com/job/deploy/buildWithParameters" \
+            --user "admin:${{ secrets.JENKINS_TOKEN }}" \
+            -H "$CRUMB" \
+            --data-urlencode "SERVICE_NAME=sample-app" \
+            --data-urlencode "IMAGE_TAG=${{ needs.build.outputs.image_tag }}" \
+            --data-urlencode "ECR_URL=${{ needs.build.outputs.ecr_url }}" \
+            --data-urlencode "GIT_COMMIT=${{ github.sha }}"
 
 

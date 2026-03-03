@@ -6,12 +6,11 @@ on:
       - master
 
 env:
-  AWS_REGION:   ${{ vars.AWS_REGION }}
-  JENKINS_URL:  ${{ vars.JENKINS_URL }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  JENKINS_URL: ${{ vars.JENKINS_URL }}
   JENKINS_USER: ${{ vars.JENKINS_USER }}
 
 jobs:
-
   test:
     name: Run Tests
     runs-on: ubuntu-latest
@@ -21,6 +20,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
+      - run: pip install pytest
       - run: pytest tests/ -v
 
   build:
@@ -29,15 +29,15 @@ jobs:
     needs: test
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
-      ecr_url:   ${{ steps.meta.outputs.ecr_url }}
+      ecr_url: ${{ steps.meta.outputs.ecr_url }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ vars.AWS_REGION }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2

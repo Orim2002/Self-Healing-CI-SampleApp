@@ -7,7 +7,7 @@ lock           = threading.Lock()
 total_requests = 0
 total_errors   = 0
 is_healthy     = True
-VERSION = "1.1.5"
+VERSION = "1.1.6"
 
 
 @app.route("/health")
